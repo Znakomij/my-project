@@ -1,0 +1,66 @@
+# Сборка Docker-образа с DinD (Docker-in-Docker)
+image: docker:latest
+
+services:
+  - docker:dind
+
+variables:
+  DOCKER_HOST: tcp://docker:2375/
+  DOCKER_DRIVER: overlay2
+  DOCKER_TLS_CERTDIR: ""
+
+stages:
+  - build
+  - lint
+  - test
+  - package
+  - deploy
+
+build_image:
+  stage: build
+  script:
+    - docker build -t my_project_image .
+    - docker tag my_project_image registry.gitlab.com/your_namespace/your_project/my_project_image:latest
+    - docker login -u "$CI_REGISTRY_USER" -p "$CI_REGISTRY_PASSWORD" registry.gitlab.com
+    - docker push registry.gitlab.com/your_namespace/your_project/my_project_image:latest
+
+#Линтеринг и форматирование кода
+lint_code:
+  stage: lint
+  image: python:3.9
+  script:
+    - pip install flake8 black
+    - flake8 .
+    - black --check .
+
+#Сборка и публикация Python-пакета
+build_package:
+  stage: package
+  image: python:3.9
+  script:
+    - pip install setuptools wheel twine
+    - python setup.py sdist bdist_wheel
+    - TWINE_PASSWORD=$CI_REGISTRY_PASSWORD twine upload --repository-url https://gitlab.com/api/v4/projects/$CI_PROJECT_ID/packages/pypi dist/*
+
+#Сборка документации и публикация на GitLab Pages
+build_docs:
+  stage: deploy
+  image: python:3.9
+  script:
+    - pip install quarto
+    - quarto render docs --to html
+  artifacts:
+    paths:
+      - docs/_site/
+  only:
+    - main
+
+pages:
+  stage: deploy
+  script:
+    - mv docs/_site public
+  artifacts:
+    paths:
+      - public
+  only:
+    - main

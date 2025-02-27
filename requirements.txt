@@ -1,0 +1,8 @@
+pandas
+numpy
+seaborn
+matplotlib
+quarto
+flake8
+black
+setuptools
